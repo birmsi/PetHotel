@@ -12,6 +12,7 @@ import (
 
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 )
 
@@ -44,13 +45,13 @@ func main() {
 
 	log.Printf("version - %s", version)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Heelo :D"))
-	})
+	r := chi.NewRouter()
+
+	r.Get("/", home)
+
 	server := http.Server{
 		Addr:    ":4000",
-		Handler: mux,
+		Handler: r,
 	}
 
 	if err := server.ListenAndServe(); err != nil {
@@ -103,4 +104,8 @@ func handleEnvVariables() (DBInfo, error) {
 	}
 
 	return DBInfo{address: dbAddress, user: dbUser, password: dbPassword, name: dbName}, err
+}
+
+func home(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("Home page :D"))
 }
