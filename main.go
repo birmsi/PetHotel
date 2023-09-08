@@ -1,6 +1,9 @@
 package main
 
 import (
+	"PetHotel/handlers"
+	"PetHotel/repositories"
+	"PetHotel/services"
 	"context"
 	"database/sql"
 	"fmt"
@@ -23,15 +26,25 @@ type DBInfo struct {
 	name     string
 }
 
+type ApplicationHandlers struct {
+	BoxHandlers handlers.BoxHandler
+}
+
+type ApplicationInfo struct {
+	applicationPort string
+	DBInfo          DBInfo
+	handlers        ApplicationHandlers
+}
+
 func main() {
 	fmt.Println("Helloes")
 
-	dbInfo, err := handleEnvVariables()
+	applicationInfo, err := handleEnvVariables()
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	db, err := openDB(dbInfo)
+	db, err := openDB(applicationInfo.DBInfo)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -45,14 +58,29 @@ func main() {
 
 	log.Printf("version - %s", version)
 
+	applicationInfo.handlers = initApplicationHandlers(db)
+
 	r := chi.NewRouter()
 
 	r.Get("/", home)
+	r.Route("/box", func(r chi.Router) {
+		r.Get("/", applicationInfo.handlers.BoxHandlers.GetBoxesView)
+
+		r.Get("/create", applicationInfo.handlers.BoxHandlers.CreateBoxView)
+		r.Post("/create", applicationInfo.handlers.BoxHandlers.CreateBoxPost)
+
+		r.Get("/{boxID}/update", applicationInfo.handlers.BoxHandlers.GetBoxUpdateView)
+		r.Post("/{boxID}/update", applicationInfo.handlers.BoxHandlers.GetBoxUpdatePut)
+
+		r.Delete("/{boxID}", applicationInfo.handlers.BoxHandlers.BoxDelete)
+	})
 
 	server := http.Server{
 		Addr:    ":4000",
 		Handler: r,
 	}
+
+	log.Printf("Ready 2 go! Listening on :%s", applicationInfo.applicationPort)
 
 	if err := server.ListenAndServe(); err != nil {
 		fmt.Printf("ooopps, %v", err)
@@ -80,7 +108,7 @@ func openDB(dbInfo DBInfo) (*sql.DB, error) {
 	return db, nil
 }
 
-func handleEnvVariables() (DBInfo, error) {
+func handleEnvVariables() (ApplicationInfo, error) {
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
@@ -103,9 +131,32 @@ func handleEnvVariables() (DBInfo, error) {
 		log.Fatal("Missing DB_PASSWORD from .env")
 	}
 
-	return DBInfo{address: dbAddress, user: dbUser, password: dbPassword, name: dbName}, err
+	applicationPort := os.Getenv("APPLICATION_PORT")
+	if dbPassword == "" {
+		log.Fatal("Missing APPLICATION_PORT from .env")
+	}
+
+	return ApplicationInfo{
+		applicationPort: applicationPort,
+		DBInfo: DBInfo{
+			address:  dbAddress,
+			user:     dbUser,
+			password: dbPassword,
+			name:     dbName,
+		},
+	}, err
 }
 
 func home(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Home page :D"))
+}
+
+func initApplicationHandlers(db *sql.DB) ApplicationHandlers {
+	var applicationHandlers ApplicationHandlers
+
+	boxRepository := repositories.NewBoxRepository(db)
+	boxService := services.NewService(boxRepository)
+	applicationHandlers.BoxHandlers = handlers.NewBoxHandler(boxService)
+
+	return applicationHandlers
 }
