@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -37,28 +38,35 @@ type ApplicationInfo struct {
 }
 
 func main() {
-	fmt.Println("Helloes")
+	slogHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level:     slog.LevelDebug,
+		AddSource: true,
+	})
+	slogger := slog.New(slogHandler)
 
 	applicationInfo, err := handleEnvVariables()
 	if err != nil {
-		log.Fatal(err.Error())
+		slogger.Error(err.Error())
+		os.Exit(1)
 	}
 
 	db, err := openDB(applicationInfo.DBInfo)
 	if err != nil {
-		log.Fatal(err)
+		slogger.Error(err.Error())
+		os.Exit(1)
 	}
 
 	defer db.Close()
 
 	var version string
-	if err := db.QueryRow("select version()").Scan(&version); err != nil {
-		panic(err)
+	if err = db.QueryRow("select version()").Scan(&version); err != nil {
+		slogger.Error(err.Error())
+		os.Exit(1)
 	}
 
-	log.Printf("version - %s", version)
+	slogger.Debug(fmt.Sprintf("version - %s", version))
 
-	applicationInfo.handlers = initApplicationHandlers(db)
+	applicationInfo.handlers = initApplicationHandlers(db, slogger)
 
 	r := chi.NewRouter()
 
@@ -80,10 +88,11 @@ func main() {
 		Handler: r,
 	}
 
-	log.Printf("Ready 2 go! Listening on :%s", applicationInfo.applicationPort)
+	slogger.Debug(fmt.Sprintf("Ready 2 go! Listening on :%s", applicationInfo.applicationPort))
 
 	if err := server.ListenAndServe(); err != nil {
-		fmt.Printf("ooopps, %v", err)
+		slogger.Error(fmt.Sprintf("Failed to init server - %s", err.Error()))
+		os.Exit(1)
 	}
 }
 
@@ -103,8 +112,6 @@ func openDB(dbInfo DBInfo) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Print("Connected to DB :)")
-
 	return db, nil
 }
 
@@ -151,12 +158,12 @@ func home(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Home page :D"))
 }
 
-func initApplicationHandlers(db *sql.DB) ApplicationHandlers {
+func initApplicationHandlers(db *sql.DB, slogger *slog.Logger) ApplicationHandlers {
 	var applicationHandlers ApplicationHandlers
 
-	boxRepository := repositories.NewBoxRepository(db)
-	boxService := services.NewService(boxRepository)
-	applicationHandlers.BoxHandlers = handlers.NewBoxHandler(boxService)
+	boxRepository := repositories.NewBoxRepository(db, slogger)
+	boxService := services.NewService(boxRepository, slogger)
+	applicationHandlers.BoxHandlers = handlers.NewBoxHandler(boxService, slogger)
 
 	return applicationHandlers
 }

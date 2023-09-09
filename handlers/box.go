@@ -2,16 +2,17 @@ package handlers
 
 import (
 	"PetHotel/services"
+	"log/slog"
 	"net/http"
 )
 
 type BoxHandler struct {
-	//TODO:logger para logar as cenas
 	Service services.BoxService
+	slogger *slog.Logger
 }
 
-func NewBoxHandler(boxService services.BoxService) BoxHandler {
-	return BoxHandler{Service: boxService}
+func NewBoxHandler(boxService services.BoxService, slogger *slog.Logger) BoxHandler {
+	return BoxHandler{Service: boxService, slogger: slogger}
 }
 func (bh BoxHandler) GetBoxesView(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("All boxes"))
