@@ -1,0 +1,27 @@
+{{define "title"}} Create Box {{end}}
+{{define "main"}}
+
+<div class="container" style="background-color: #fff;margin-bottom: 2%;">
+    <h1 class="text-center">Create Box</h1>
+    {{with .ErrorMessage}}
+        <div class="container text-center" style="background-color: red;">
+            <h4 style="color:white">{{.}}</h4>
+        </div>
+    {{end}}
+    <form action="/box/create" method="post">
+        <div class="form-group">
+            <label for="number">Box number:</label>
+                <input class="form-control" type="text" id="number" name="number" value="{{.Box.Number}}">
+        </div>
+        <div class="form-group">
+            <label for="size">Size:</label>
+            <select class="form-control" id="size" name="size">
+                {{range .BoxSizes}}
+                <option value="{{.}}" {{if eq . $.Box.Size}}selected{{end}}>{{.}}</option>
+            {{end}}
+            </select>
+        </div>
+        <button class="btn btn-primary" type="submit">Create</button>
+    </form>
+</div>
+{{end}}
