@@ -12,9 +12,9 @@ type HotelService struct {
 }
 
 type Box struct {
+	ID           int
 	Number       int
 	Size         Size
-	Occupancy    int
 	Availability []DateRangeWithPrice
 }
 

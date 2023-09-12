@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"html/template"
 	"log"
 	"log/slog"
 	"net/http"
@@ -39,7 +40,6 @@ type ApplicationInfo struct {
 
 func main() {
 	slogHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level:     slog.LevelDebug,
 		AddSource: true,
 	})
 	slogger := slog.New(slogHandler)
@@ -69,13 +69,18 @@ func main() {
 	applicationInfo.handlers = initApplicationHandlers(db, slogger)
 
 	r := chi.NewRouter()
+	fileServer := http.StripPrefix("/static", http.FileServer(http.Dir("./ui/static/")))
 
 	r.Get("/", home)
+	r.Get("/static/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fileServer.ServeHTTP(w, r)
+	}))
 	r.Route("/box", func(r chi.Router) {
 		r.Get("/", applicationInfo.handlers.BoxHandlers.GetBoxesView)
 
 		r.Get("/create", applicationInfo.handlers.BoxHandlers.CreateBoxView)
 		r.Post("/create", applicationInfo.handlers.BoxHandlers.CreateBoxPost)
+		r.Get("/{boxID}/view", applicationInfo.handlers.BoxHandlers.GetBoxView)
 
 		r.Get("/{boxID}/update", applicationInfo.handlers.BoxHandlers.GetBoxUpdateView)
 		r.Post("/{boxID}/update", applicationInfo.handlers.BoxHandlers.GetBoxUpdatePut)
@@ -155,7 +160,22 @@ func handleEnvVariables() (ApplicationInfo, error) {
 }
 
 func home(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Home page :D"))
+
+	t, err := template.ParseFiles(
+		"./ui/html/base.html",
+		"./ui/html/partials/navigation.html",
+		"./ui/html/pages/home.html",
+	)
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	err = t.ExecuteTemplate(w, "base", nil)
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+
 }
 
 func initApplicationHandlers(db *sql.DB, slogger *slog.Logger) ApplicationHandlers {
