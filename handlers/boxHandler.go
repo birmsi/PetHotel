@@ -9,17 +9,19 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
 
 type BoxHandler struct {
-	Service services.BoxService
-	slogger *slog.Logger
+	Service        services.BoxService
+	BookingService services.BookingService
+	slogger        *slog.Logger
 }
 
-func NewBoxHandler(boxService services.BoxService, slogger *slog.Logger) BoxHandler {
-	return BoxHandler{Service: boxService, slogger: slogger}
+func NewBoxHandler(boxService services.BoxService, slogger *slog.Logger, bookingService services.BookingService) BoxHandler {
+	return BoxHandler{Service: boxService, slogger: slogger, BookingService: bookingService}
 }
 func (bh BoxHandler) GetBoxesView(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("All boxes"))
@@ -110,8 +112,12 @@ func (bh BoxHandler) CreateBoxViewParser(
 	}
 }
 
-type GetBox struct {
-	Box models.Box
+type BoxResponse struct {
+	ID            int
+	Number        int
+	Size          string
+	Availabilites []*models.Availability
+	Bookings      []*models.Booking
 }
 
 // GetBoxView Does not allow for edit - only view mode :)
@@ -130,8 +136,20 @@ func (bh BoxHandler) GetBoxView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//TODO: eventually add the bookings of and for this box
-	// add the availabilities
+	time.Now()
+	month := 24 * time.Hour * 30
+
+	availabilities, err := bh.Service.GetAvailabilities(boxID, time.Now(), time.Now().Add(month))
+	if err != nil {
+		bh.slogger.Error(err.Error())
+		return
+	}
+
+	bookings, err := bh.BookingService.GetBookings(boxID, time.Now(), time.Now().Add(month))
+	if err != nil {
+		bh.slogger.Error(err.Error())
+		return
+	}
 
 	t, err := template.ParseFiles(
 		"./ui/html/base.html",
@@ -144,7 +162,15 @@ func (bh BoxHandler) GetBoxView(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 
-	if err = t.ExecuteTemplate(w, "base", box); err != nil {
+	boxResponse := BoxResponse{
+		ID:            boxID,
+		Number:        box.Number,
+		Size:          string(box.Size),
+		Availabilites: availabilities,
+		Bookings:      bookings,
+	}
+
+	if err = t.ExecuteTemplate(w, "base", boxResponse); err != nil {
 		bh.slogger.Error(err.Error())
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
@@ -156,11 +182,189 @@ func (bh BoxHandler) GetBoxUpdateView(w http.ResponseWriter, r *http.Request) {
 }
 
 func (bh BoxHandler) GetBoxUpdatePut(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("GetBoxUpdatePut"))
+
+	boxID := chi.URLParam(r, "boxID")
+
+	id, err := strconv.Atoi(boxID)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	r.ParseForm()
+
+	// num := r.PostForm.Get("number")
+	// size := r.PostForm.Get("size")
+
+	start_times, err := fromArrayOfStringToTime(r.PostForm["start_time"])
+	if err != nil || start_times == nil {
+		fmt.Printf("Carago")
+	}
+	end_times, err := fromArrayOfStringToTime(r.PostForm["end_time"])
+	if err != nil || end_times == nil {
+		fmt.Printf("Carago")
+	}
+	prices, err := fromArrayOfStringToFloat64(r.PostForm["price"])
+	if err != nil || prices == nil {
+		fmt.Printf("Carago")
+	}
+
+	if len(start_times) != len(end_times) || len(start_times) != len(prices) {
+		fmt.Printf("Carago")
+	}
+
+	availabilities := make([]models.Availability, 0)
+	for i := range start_times {
+		availabilities = append(availabilities, models.Availability{
+			StartTime: *start_times[i],
+			EndTime:   *end_times[i],
+			Price:     *prices[i],
+			BoxID:     id,
+		})
+	}
+
+	isValid := CheckValidDates(availabilities)
+
+	if !isValid {
+		fmt.Println("Issue with dates")
+		return
+	}
+
+	futureAvailabilities, err := bh.Service.GetFutureAvailabilities(id)
+	if err != nil {
+		fmt.Println("Issue with dates")
+		return
+	}
+
+	hasOverlap := HasOverlap(availabilities, futureAvailabilities)
+	if hasOverlap {
+		fmt.Println("Issue with future availability dates")
+		return
+	}
+	futureBookings, err := bh.BookingService.GetFutureBookings(id)
+	if err != nil {
+		fmt.Println("Issue with dates")
+		return
+	}
+
+	hasOverlap = OverlapsFutureBookings(availabilities, futureBookings)
+	if hasOverlap {
+		fmt.Println("Issue with future bookings dates")
+		return
+	}
+
+	err = bh.Service.AddAvailabilities(availabilities)
+	if err != nil {
+		fmt.Println("Issue with future bookings dates", err.Error())
+		return
+	}
+
 	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+}
+
+func OverlapsFutureBookings(availabilities []models.Availability, futureBookings []*models.Booking) bool {
+	for _, avail1 := range availabilities {
+		for _, avail2 := range futureBookings {
+			if !(avail1.EndTime.Before(avail2.CheckIn) || avail2.CheckOut.Before(avail1.StartTime)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func fromArrayOfStringToTime(toConvert []string) ([]*time.Time, error) {
+	times := make([]*time.Time, 0)
+
+	for _, t := range toConvert {
+		dt, err := time.Parse("2006-01-02", t)
+		if err != nil {
+			return nil, err
+		}
+		times = append(times, &dt)
+	}
+
+	return times, nil
+}
+func fromArrayOfStringToFloat64(toConvert []string) ([]*float64, error) {
+	prices := make([]*float64, 0)
+
+	for _, s := range toConvert {
+		floatValue, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		prices = append(prices, &floatValue)
+	}
+
+	return prices, nil
 }
 
 func (bh BoxHandler) BoxDelete(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("BoxDelete"))
 	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+}
+
+// CheckValidDates checks if the start dates are at least on the current date or in the future.
+func CheckValidDates(availabilities []models.Availability) bool {
+
+	isValid := CheckDatesCorrectness(availabilities)
+
+	overlaps := CheckOverlap(availabilities)
+
+	isFuture := CheckIfDatesInPresentOrFuture(availabilities)
+
+	return isValid && !overlaps && isFuture
+}
+
+func CheckOverlap(availabilities []models.Availability) bool {
+	n := len(availabilities)
+
+	// Iterate through each pair of availabilities and check for overlap
+	for i := 0; i < n-1; i++ {
+		for j := i + 1; j < n; j++ {
+			// Check if the end time of one availability is before the start time of the other
+			if availabilities[i].EndTime.Before(availabilities[j].StartTime) ||
+				availabilities[j].EndTime.Before(availabilities[i].StartTime) {
+				continue // No overlap, check the next pair
+			} else {
+				// Overlap detected
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func CheckIfDatesInPresentOrFuture(availabilities []models.Availability) bool {
+	currentDate := time.Now()
+
+	for _, avail := range availabilities {
+		if avail.StartTime.Before(currentDate) {
+			return false
+		}
+	}
+	return true
+}
+
+func CheckDatesCorrectness(availabilities []models.Availability) bool {
+
+	for _, availability := range availabilities {
+		if availability.EndTime.Before(availability.StartTime) {
+			return false
+		}
+	}
+	return true
+}
+
+func HasOverlap(availabilities []models.Availability, futureAvailabilities []*models.Availability) bool {
+	for _, avail1 := range availabilities {
+		for _, avail2 := range futureAvailabilities {
+			if !(avail1.EndTime.Before(avail2.StartTime) || avail2.EndTime.Before(avail1.StartTime)) {
+				return true
+			}
+		}
+	}
+	return false
 }

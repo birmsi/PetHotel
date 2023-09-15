@@ -1,11 +1,189 @@
 {{define "title"}} View {{end}}
 
+{{define "main-styles"}}
+
+
+    <style>
+        /* CSS to style the layout */
+        #calendar-container {
+            display: flex;
+        }
+
+        #calendar-left {
+            flex: 1;
+        }
+
+        #calendar{
+            margin-left: 5%;
+        }
+
+        #date-list-container {
+            flex: 1;
+            overflow-y: scroll;
+            padding: 10px;
+        }
+
+        /* Style for date list items */
+        .date-item {
+            margin: 0;
+            padding: 5px;
+            border-bottom: 1px solid #ddd;
+        }
+    </style>
+
+{{end}}
+
 {{define "main"}}
 
-<h1>Box {{.Number}}</h1>
-
-<div class="">
-    <p>{{.Size}}</p>
+<div class="text-center">
+    <h1>Box {{.Number}} - {{.Size}}</h1>
 </div>
 
+<div id='calendar-container'>
+    <div id='calendar-left'>
+        <!-- FullCalendar goes here -->
+        <div id='calendar'></div>
+    </div>
+    <div id='date-list-container'>
+        <!-- Scrollable div with date list -->
+        <form id="availabilityForm" method="POST" action="/box/{{.ID}}/update" >
+            <div id="availabilityEntries">
+                <!-- Availability entry template -->
+                <div class="availability-entry">
+                
+                </div>
+            </div>
+    
+            <button type="button" class="btn btn-primary" onclick="addAvailabilityEntry()">Add Availability</button>
+            <button type="submit" class="btn btn-success">Submit</button>
+        </form>
+
+          <hr>
+        {{with .Availabilites}}
+            {{ range $date := . }} <!-- Assuming .Dates is a slice of dates from your Go template -->
+                <p class='date-item'>{{$date.StartTime}} - {{$date.EndTime}} - {{$date.Price}} </p>
+            {{ end }}
+        {{end}}
+
+
+        {{with .Bookings}}
+            {{ range $booking := . }} <!-- Assuming .Dates is a slice of dates from your Go template -->
+                <p class='date-item'>{{$booking.CheckIn}} - {{$booking.Checkout}} </p>
+            {{ end }}
+        {{end}}
+    </div>
+</div>
+
+
+<div id='calendar' style="margin-top: 2%;margin-bottom: 10%; margin-left:5%"></div>
+
+{{end}}
+
+{{define "main-scripts"}}
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'></script>
+<script>
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('calendar');
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+      initialView: 'dayGridMonth',
+      height: 500,
+      events: [
+    {
+      start: '2023-09-12',
+      end: '2023-09-12',
+      display: 'background',
+      backgroundColor:'#a70000',
+      title: "30€",
+    },
+    {
+      start: '2023-09-14',
+      end: '2023-09-16',
+      display: 'background',
+      backgroundColor:'#556b2f'
+    }
+  ]
+    });
+    calendar.render();
+  });
+  function addAvailabilityEntry() {
+            const availabilityEntries = document.getElementById('availabilityEntries');
+            
+            // Create a new availability entry
+            const entryDiv = document.createElement('div');
+            entryDiv.classList.add('availability-entry');
+            
+            const startDiv = document.createElement('div');
+            startDiv.classList.add('form-group');
+            startDiv.classList.add('col-md-3');
+
+
+            const endDiv = document.createElement('div');
+            endDiv.classList.add('form-group');
+            endDiv.classList.add('col-md-3');
+
+            const priceDiv = document.createElement('div');
+            priceDiv.classList.add('form-group');
+            priceDiv.classList.add('col-md-3');
+
+
+
+            // Create input fields
+            const startInput = document.createElement('input');
+            startInput.type = 'date';
+            startInput.name = 'start_time';
+            startInput.className = 'form-control';
+            startInput.required = true;
+
+            startDiv.appendChild(document.createTextNode('Start Date: '));
+            startDiv.appendChild(startInput);
+            
+            const endInput = document.createElement('input');
+            endInput.type = 'date';
+            endInput.name = 'end_time';
+            endInput.className = 'form-control';
+            endInput.required = true;
+
+            startDiv.appendChild(document.createTextNode('End Date: '));
+            startDiv.appendChild(endInput);
+            
+            const priceInput = document.createElement('input');
+            priceInput.type = 'number';
+            priceInput.name = 'price';
+            priceInput.className = 'form-control';
+            priceInput.step = '0.01';
+            priceInput.required = true;
+
+            priceDiv.appendChild(document.createTextNode('Price: '));
+            priceDiv.appendChild(priceInput);
+            
+            // Create a button to remove the entry
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.textContent = 'Remove';
+            removeButton.classList.add('btn');
+            removeButton.classList.add('btn-danger');
+
+            removeButton.onclick = function () {
+                removeAvailabilityEntry(entryDiv);
+            };
+            
+            // Append input fields and remove button to the entry div
+            entryDiv.appendChild(startDiv);
+            
+            entryDiv.appendChild(endDiv);
+            
+            entryDiv.appendChild(priceDiv);
+            
+            entryDiv.appendChild(removeButton);
+            
+            // Append the new entry to the container
+            availabilityEntries.appendChild(entryDiv);
+        }
+
+        function removeAvailabilityEntry(entryDiv) {
+            const availabilityEntries = document.getElementById('availabilityEntries');
+            availabilityEntries.removeChild(entryDiv);
+        }
+</script>
 {{end}}

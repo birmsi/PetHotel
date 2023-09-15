@@ -29,7 +29,8 @@ type DBInfo struct {
 }
 
 type ApplicationHandlers struct {
-	BoxHandlers handlers.BoxHandler
+	BoxHandlers     handlers.BoxHandler
+	BookingHandlers handlers.BookingHandlers
 }
 
 type ApplicationInfo struct {
@@ -82,7 +83,7 @@ func main() {
 		r.Post("/create", applicationInfo.handlers.BoxHandlers.CreateBoxPost)
 		r.Get("/{boxID}/view", applicationInfo.handlers.BoxHandlers.GetBoxView)
 
-		r.Get("/{boxID}/update", applicationInfo.handlers.BoxHandlers.GetBoxUpdateView)
+		// r.Get("/{boxID}/update", applicationInfo.handlers.BoxHandlers.GetBoxUpdateView)
 		r.Post("/{boxID}/update", applicationInfo.handlers.BoxHandlers.GetBoxUpdatePut)
 
 		r.Delete("/{boxID}", applicationInfo.handlers.BoxHandlers.BoxDelete)
@@ -181,9 +182,13 @@ func home(w http.ResponseWriter, r *http.Request) {
 func initApplicationHandlers(db *sql.DB, slogger *slog.Logger) ApplicationHandlers {
 	var applicationHandlers ApplicationHandlers
 
+	bookingRepository := repositories.NewBookingRepository(db, slogger)
+	bookingService := services.NewBookingService(bookingRepository, slogger)
+	applicationHandlers.BookingHandlers = handlers.NewBookingHandlers(bookingService, slogger)
+
 	boxRepository := repositories.NewBoxRepository(db, slogger)
 	boxService := services.NewService(boxRepository, slogger)
-	applicationHandlers.BoxHandlers = handlers.NewBoxHandler(boxService, slogger)
+	applicationHandlers.BoxHandlers = handlers.NewBoxHandler(boxService, slogger, bookingService)
 
 	return applicationHandlers
 }

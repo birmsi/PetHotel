@@ -12,10 +12,11 @@ type HotelService struct {
 }
 
 type Box struct {
-	ID           int
-	Number       int
-	Size         Size
-	Availability []DateRangeWithPrice
+	OperationControl
+	ID              int
+	Number          int
+	Size            Size
+	AvailabilityIDs []int
 }
 
 type Size string
@@ -24,30 +25,32 @@ const SmallSize Size = "small"
 const MediumSize Size = "medium"
 const LargeSize Size = "large"
 
-type DateRangeWithPrice struct {
-	Start time.Time
-	End   time.Time
-	Price float64
+type Availability struct {
+	ID        int
+	BoxID     int
+	StartTime time.Time
+	EndTime   time.Time
+	Price     float64
 }
 
-func (h *HotelService) Book(box Box, checkIn, checkOut time.Time) string {
+func (h *HotelService) Book(box Box, checkIn, checkOut time.Time, availabilities []Availability) string {
 
-	if !h.IsAvailable(box, checkIn, checkOut) {
+	if !h.IsAvailable(box, checkIn, checkOut, availabilities) {
 		return fmt.Sprintf("Box %d (%s) is not available for the selected time period.\n", box.Number, box.Size)
 	}
 
 	totalPrice := 0.0
-	for _, dateRange := range box.Availability {
-		if dateRange.Start.Before(checkOut) && dateRange.End.After(checkIn) {
+	for _, dateRange := range availabilities {
+		if dateRange.StartTime.Before(checkOut) && dateRange.EndTime.After(checkIn) {
 
-			start := helpers.Max(dateRange.Start, checkIn)
-			end := helpers.Min(dateRange.End, checkOut)
+			start := helpers.Max(dateRange.StartTime, checkIn)
+			end := helpers.Min(dateRange.EndTime, checkOut)
 			totalPrice += dateRange.Price * end.Sub(start).Hours() / 24.0
 		}
 	}
 
 	booking := Booking{
-		Box:      box,
+		BoxID:    box.ID,
 		CheckIn:  checkIn,
 		CheckOut: checkOut,
 	}
@@ -58,23 +61,23 @@ func (h *HotelService) Book(box Box, checkIn, checkOut time.Time) string {
 		checkIn.Format("2006-01-02"), checkOut.Format("2006-01-02"), box.Number, box.Size, totalPrice)
 }
 
-func (h *HotelService) IsAvailable(box Box, checkIn, checkOut time.Time) bool {
-	if len(box.Availability) == 0 {
+func (h *HotelService) IsAvailable(box Box, checkIn, checkOut time.Time, availabilities []Availability) bool {
+	if len(availabilities) == 0 {
 		//maybe log this as it should have some availability
 		return false
 	}
 	isAvailable := false
-	for _, dateRange := range box.Availability {
-		if dateRange.Start.Before(checkIn) && dateRange.End.After(checkOut) {
+	for _, dateRange := range availabilities {
+		if dateRange.StartTime.Before(checkIn) && dateRange.EndTime.After(checkOut) {
 			isAvailable = true
 		}
-		if dateRange.Start.Before(checkIn) && dateRange.End.Equal(checkOut) {
+		if dateRange.StartTime.Before(checkIn) && dateRange.EndTime.Equal(checkOut) {
 			isAvailable = true
 		}
-		if dateRange.Start.Equal(checkIn) && dateRange.End.After(checkOut) {
+		if dateRange.StartTime.Equal(checkIn) && dateRange.EndTime.After(checkOut) {
 			isAvailable = true
 		}
-		if dateRange.Start.Equal(checkIn) && dateRange.End.Equal(checkOut) {
+		if dateRange.StartTime.Equal(checkIn) && dateRange.EndTime.Equal(checkOut) {
 			isAvailable = true
 		}
 	}
@@ -86,7 +89,8 @@ func (h *HotelService) IsAvailable(box Box, checkIn, checkOut time.Time) bool {
 	canBook := true
 	//Add tests to this logic :p
 	for _, booking := range h.Bookings {
-		if booking.Box.Number == box.Number &&
+
+		if booking.BoxID == box.ID &&
 			(booking.CheckIn.Before(checkIn) && booking.CheckOut.After(checkIn) ||
 				booking.CheckIn.Equal(checkIn) ||
 				booking.CheckIn.After(checkIn) && booking.CheckOut.Before(checkOut) ||

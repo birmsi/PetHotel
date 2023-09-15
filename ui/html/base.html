@@ -23,6 +23,8 @@
     <link rel="stylesheet" href="/static/css/jquery.timepicker.css">
     <link rel="stylesheet" href="/static/css/flaticon.css">
     <link rel="stylesheet" href="/static/css/style.css">
+
+    {{block "main-styles" .}}{{end}}
     <title>{{template "title" .}}Pet Hotel</title>
 </head>
 
@@ -77,6 +79,8 @@
     <script src="/static/js/jquery.magnific-popup.min.js"></script>
     <script src="/static/js/scrollax.min.js"></script>
     <script src="/static/js/main.js"></script>
+
+    {{block "main-scripts" .}} {{end}}
 
 </body>
 
