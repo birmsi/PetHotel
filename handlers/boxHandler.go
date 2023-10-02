@@ -146,9 +146,7 @@ func (bh BoxHandler) GetBoxView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	availabilities[0].StartTime.Format(time.RFC3339)
-
-	bookings, err := bh.BookingService.GetBookings(boxID, startOfMonth, time.Now().Add(month))
+	bookings, err := bh.BookingService.GetBookings(boxID, time.Now(), time.Now().Add(month))
 	if err != nil {
 		bh.slogger.Error(err.Error())
 		return
