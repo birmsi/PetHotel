@@ -42,6 +42,7 @@ type ApplicationInfo struct {
 func main() {
 	slogHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		AddSource: true,
+		Level:     slog.LevelDebug,
 	})
 	slogger := slog.New(slogHandler)
 
@@ -58,14 +59,6 @@ func main() {
 	}
 
 	defer db.Close()
-
-	var version string
-	if err = db.QueryRow("select version()").Scan(&version); err != nil {
-		slogger.Error(err.Error())
-		os.Exit(1)
-	}
-
-	slogger.Debug(fmt.Sprintf("version - %s", version))
 
 	applicationInfo.handlers = initApplicationHandlers(db, slogger)
 

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"PetHotel/models"
+	"PetHotel/responses"
 	"PetHotel/services"
 	"fmt"
 	"html/template"
@@ -116,7 +117,7 @@ type BoxResponse struct {
 	ID            int
 	Number        int
 	Size          string
-	Availabilites []*models.Availability
+	Availabilites []*responses.AvailabilityResponse
 	Bookings      []*models.Booking
 }
 
@@ -136,16 +137,18 @@ func (bh BoxHandler) GetBoxView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	time.Now()
 	month := 24 * time.Hour * 30
+	startOfMonth := time.Date(time.Now().Year(), time.Now().Month(), 1, 0, 0, 0, 0, time.UTC)
 
-	availabilities, err := bh.Service.GetAvailabilities(boxID, time.Now(), time.Now().Add(month))
+	availabilities, err := bh.Service.GetAvailabilities(boxID, startOfMonth, startOfMonth.Add(month))
 	if err != nil {
 		bh.slogger.Error(err.Error())
 		return
 	}
 
-	bookings, err := bh.BookingService.GetBookings(boxID, time.Now(), time.Now().Add(month))
+	availabilities[0].StartTime.Format(time.RFC3339)
+
+	bookings, err := bh.BookingService.GetBookings(boxID, startOfMonth, time.Now().Add(month))
 	if err != nil {
 		bh.slogger.Error(err.Error())
 		return
@@ -161,12 +164,23 @@ func (bh BoxHandler) GetBoxView(w http.ResponseWriter, r *http.Request) {
 		bh.slogger.Error(err.Error())
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
+	availabilitiesReponse := make([]*responses.AvailabilityResponse, 0, len(availabilities))
+
+	for _, availability := range availabilities {
+		availabilitiesReponse = append(availabilitiesReponse, &responses.AvailabilityResponse{
+			ID:        availability.ID,
+			BoxID:     availability.BoxID,
+			StartTime: availability.StartTime.Format(time.RFC3339),
+			EndTime:   availability.EndTime.Format(time.RFC3339),
+			Price:     availability.Price,
+		})
+	}
 
 	boxResponse := BoxResponse{
 		ID:            boxID,
 		Number:        box.Number,
 		Size:          string(box.Size),
-		Availabilites: availabilities,
+		Availabilites: availabilitiesReponse,
 		Bookings:      bookings,
 	}
 
@@ -198,19 +212,19 @@ func (bh BoxHandler) GetBoxUpdatePut(w http.ResponseWriter, r *http.Request) {
 
 	start_times, err := fromArrayOfStringToTime(r.PostForm["start_time"])
 	if err != nil || start_times == nil {
-		fmt.Printf("Carago")
+		fmt.Printf("erro!")
 	}
 	end_times, err := fromArrayOfStringToTime(r.PostForm["end_time"])
 	if err != nil || end_times == nil {
-		fmt.Printf("Carago")
+		fmt.Printf("erro!")
 	}
 	prices, err := fromArrayOfStringToFloat64(r.PostForm["price"])
 	if err != nil || prices == nil {
-		fmt.Printf("Carago")
+		fmt.Printf("erro!")
 	}
 
 	if len(start_times) != len(end_times) || len(start_times) != len(prices) {
-		fmt.Printf("Carago")
+		fmt.Printf("erro!")
 	}
 
 	availabilities := make([]models.Availability, 0)
@@ -341,7 +355,10 @@ func CheckIfDatesInPresentOrFuture(availabilities []models.Availability) bool {
 	currentDate := time.Now()
 
 	for _, avail := range availabilities {
-		if avail.StartTime.Before(currentDate) {
+		requestedDate := time.Date(avail.StartTime.Year(), avail.StartTime.Month(), avail.StartTime.Day(), 0, 0, 0, 0, time.UTC)
+		date2 := time.Date(currentDate.Year(), currentDate.Month(), currentDate.Day(), 0, 0, 0, 0, time.UTC)
+
+		if requestedDate.Before(date2) {
 			return false
 		}
 	}
