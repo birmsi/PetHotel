@@ -60,14 +60,16 @@
 
           <hr>
         {{with .Availabilites}}
-            {{ range $date := . }} <!-- Assuming .Dates is a slice of dates from your Go template -->
+            <h4>Availabilities:</h4>
+            {{ range $date := . }}
                 <p class='date-item'>{{$date.StartTime}} - {{$date.EndTime}} - {{$date.Price}} </p>
             {{ end }}
         {{end}}
 
 
         {{with .Bookings}}
-            {{ range $booking := . }} <!-- Assuming .Dates is a slice of dates from your Go template -->
+            <h4>Bookings:</h4>
+            {{ range $booking := . }}
                 <p class='date-item'>{{$booking.CheckIn}} - {{$booking.Checkout}} </p>
             {{ end }}
         {{end}}
@@ -85,27 +87,6 @@
 
   document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
-    // var calendar = new FullCalendar.Calendar(calendarEl, {
-    //   initialView: 'dayGridMonth',
-    //   height: 500,
-    //   events: [
-     
-    //   ],
-    // // {
-    // //   start: '2023-09-12',
-    // //   end: '2023-09-12',
-    // //   display: 'background',
-    // //   backgroundColor:'#a70000',
-    // //   title: "30€",
-    // // },
-    // // {
-    // //   start: '2023-09-14',
-    // //   end: '2023-09-16',
-    // //   display: 'background',
-    // //   backgroundColor:'#556b2f'
-    // // }
-  
-    // });
 
     var calendar = new FullCalendar.Calendar(calendarEl, {
       initialView: 'dayGridMonth',
@@ -118,6 +99,16 @@
                 start: '{{ .StartTime }}', // Format this date correctly
                 end: '{{ .EndTime }}',     // Format this date correctly
                 backgroundColor:'#556b2f',
+            },
+            {{ end }}
+        {{end}}
+        {{with .Bookings}}
+            {{ range $date := . }} 
+            {
+                title: 'Booking',
+                start: '{{ .CheckIn }}', // Format this date correctly
+                end: '{{ .CheckOut }}',     // Format this date correctly
+                backgroundColor:'#a70000',
             },
             {{ end }}
         {{end}}

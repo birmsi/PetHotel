@@ -118,7 +118,7 @@ type BoxResponse struct {
 	Number        int
 	Size          string
 	Availabilites []*responses.AvailabilityResponse
-	Bookings      []*models.Booking
+	Bookings      []*responses.BookingResponse
 }
 
 // GetBoxView Does not allow for edit - only view mode :)
@@ -152,6 +152,30 @@ func (bh BoxHandler) GetBoxView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var result = availabilities
+
+	for _, booking := range bookings {
+		for i := range result {
+			if booking.CheckIn.After(result[i].StartTime) && booking.CheckIn.Before(result[i].EndTime) {
+				// Split the current availability into two parts
+				beforeBooking := models.Availability{StartTime: result[i].StartTime, EndTime: booking.CheckIn.Add(-time.Second)}
+				afterBooking := models.Availability{StartTime: booking.CheckOut.Add(time.Second), EndTime: result[i].EndTime}
+
+				// Update the result slice
+				result[i] = &beforeBooking
+				result = append(result, &afterBooking)
+			}
+		}
+	}
+
+	// Remove any empty availabilities from the result slice
+	var filteredResult []*models.Availability
+	for _, availability := range result {
+		if !availability.StartTime.Equal(availability.EndTime) {
+			filteredResult = append(filteredResult, availability)
+		}
+	}
+
 	t, err := template.ParseFiles(
 		"./ui/html/base.html",
 		"./ui/html/partials/navigation.html",
@@ -162,9 +186,9 @@ func (bh BoxHandler) GetBoxView(w http.ResponseWriter, r *http.Request) {
 		bh.slogger.Error(err.Error())
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
-	availabilitiesReponse := make([]*responses.AvailabilityResponse, 0, len(availabilities))
+	availabilitiesReponse := make([]*responses.AvailabilityResponse, 0, len(filteredResult))
 
-	for _, availability := range availabilities {
+	for _, availability := range filteredResult {
 		availabilitiesReponse = append(availabilitiesReponse, &responses.AvailabilityResponse{
 			ID:        availability.ID,
 			BoxID:     availability.BoxID,
@@ -174,12 +198,23 @@ func (bh BoxHandler) GetBoxView(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	bookingsReponse := make([]*responses.BookingResponse, 0, len(bookings))
+	for _, booking := range bookings {
+		bookingsReponse = append(bookingsReponse, &responses.BookingResponse{
+			ID:       booking.ID,
+			BoxID:    booking.BoxID,
+			CheckIn:  booking.CheckIn.Format(time.RFC3339),
+			CheckOut: booking.CheckOut.Format(time.RFC3339),
+			Price:    booking.Price,
+		})
+	}
+
 	boxResponse := BoxResponse{
 		ID:            boxID,
 		Number:        box.Number,
 		Size:          string(box.Size),
 		Availabilites: availabilitiesReponse,
-		Bookings:      bookings,
+		Bookings:      bookingsReponse,
 	}
 
 	if err = t.ExecuteTemplate(w, "base", boxResponse); err != nil {
