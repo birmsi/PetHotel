@@ -42,6 +42,26 @@ func (bx BoxRepository) GetBox(id int) (*models.Box, error) {
 	return &box, nil
 }
 
+func (bx BoxRepository) GetBoxes() ([]*models.Box, error) {
+	query := `SELECT id, number, size FROM boxes FROM boxes`
+	rows, err := bx.DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	boxes := make([]*models.Box, 0)
+	box := models.Box{}
+
+	for rows.Next() {
+		if err = rows.Scan(&box.ID, &box.Number, &box.Size); err != nil {
+			return nil, err
+		}
+		boxes = append(boxes, &box)
+	}
+
+	return boxes, nil
+}
+
 func (bx BoxRepository) GetFutureAvailabilities(boxID int) ([]*models.Availability, error) {
 	stmt := "SELECT start_time, end_time, price FROM availabilities WHERE box_id = $1 AND (start_time >= NOW() OR end_time >= NOW())"
 	rows, err := bx.DB.Query(stmt, boxID)

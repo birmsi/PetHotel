@@ -23,6 +23,9 @@ func (bx BoxService) CreateBox(box models.Box) (*int, error) {
 func (bx BoxService) GetBox(id int) (*models.Box, error) {
 	return bx.Repository.GetBox(id)
 }
+func (bx BoxService) GetBoxes() ([]*models.Box, error) {
+	return bx.Repository.GetBoxes()
+}
 
 func (bx BoxService) GetFutureAvailabilities(boxID int) ([]*models.Availability, error) {
 	return bx.Repository.GetFutureAvailabilities(boxID)

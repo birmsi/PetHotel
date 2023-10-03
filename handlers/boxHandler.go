@@ -25,6 +25,14 @@ func NewBoxHandler(boxService services.BoxService, slogger *slog.Logger, booking
 	return BoxHandler{Service: boxService, slogger: slogger, BookingService: bookingService}
 }
 func (bh BoxHandler) GetBoxesView(w http.ResponseWriter, r *http.Request) {
+
+	//TODO: Add pagination - use boxes :)
+	boxes, err := bh.Service.GetBoxes()
+	if err != nil {
+		bh.slogger.Error(err.Error())
+		return
+	}
+
 	w.Write([]byte("All boxes"))
 }
 
