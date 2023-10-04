@@ -81,6 +81,18 @@ func main() {
 
 		r.Delete("/{boxID}", applicationInfo.handlers.BoxHandlers.BoxDelete)
 	})
+	r.Route("/booking", func(r chi.Router) {
+		r.Get("/", applicationInfo.handlers.BookingHandlers.GetAllBookings)
+		r.Get("/{bookingID}", applicationInfo.handlers.BookingHandlers.GetBooking)
+
+		r.Get("/{bookingID}/create", applicationInfo.handlers.BookingHandlers.CreateBookingView)
+		r.Post("/{bookingID}/create", applicationInfo.handlers.BookingHandlers.CreateBookingPost)
+
+		r.Get("/{bookingID}/update", applicationInfo.handlers.BookingHandlers.UpdateBookingView)
+		r.Put("/{bookingID}/update", applicationInfo.handlers.BookingHandlers.UpdateBookingPut)
+
+		r.Get("/{bookingID}/delete", applicationInfo.handlers.BookingHandlers.DeleteBookingPost)
+	})
 
 	server := http.Server{
 		Addr:    ":4000",
