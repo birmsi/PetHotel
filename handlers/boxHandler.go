@@ -24,6 +24,7 @@ type BoxHandler struct {
 func NewBoxHandler(boxService services.BoxService, slogger *slog.Logger, bookingService services.BookingService) BoxHandler {
 	return BoxHandler{Service: boxService, slogger: slogger, BookingService: bookingService}
 }
+
 func (bh BoxHandler) GetBoxesView(w http.ResponseWriter, r *http.Request) {
 
 	//TODO: Add pagination - use boxes :)
@@ -33,18 +34,26 @@ func (bh BoxHandler) GetBoxesView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write([]byte("All boxes"))
-}
+	t, err := template.ParseFiles(
+		"./ui/html/base.html",
+		"./ui/html/partials/navigation.html",
+		"./ui/html/pages/box/view-all.html",
+	)
 
-type CreateBoxViewResponse struct {
-	ErrorMessage string
-	BoxSizes     []string
-	Box          models.Box
+	if err != nil {
+		bh.slogger.Error(err.Error())
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+
+	if err = t.ExecuteTemplate(w, "base", boxes); err != nil {
+		bh.slogger.Error(err.Error())
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 func (bh BoxHandler) CreateBoxView(w http.ResponseWriter, r *http.Request) {
 
-	response := CreateBoxViewResponse{
+	response := responses.CreateBoxViewResponse{
 		BoxSizes: []string{string(models.SmallSize), string(models.MediumSize), string(models.LargeSize)},
 		Box:      models.Box{},
 	}
@@ -68,7 +77,7 @@ func (bh BoxHandler) CreateBoxPost(w http.ResponseWriter, r *http.Request) {
 		errors = append(errors, "Missing size")
 	}
 	if len(errors) > 0 {
-		bh.CreateBoxViewParser(w, r, CreateBoxViewResponse{
+		bh.CreateBoxViewParser(w, r, responses.CreateBoxViewResponse{
 			BoxSizes:     []string{string(models.SmallSize), string(models.MediumSize), string(models.LargeSize)},
 			Box:          models.Box{Number: 0, Size: models.Size(size)},
 			ErrorMessage: strings.Join(errors, "."),
@@ -78,7 +87,7 @@ func (bh BoxHandler) CreateBoxPost(w http.ResponseWriter, r *http.Request) {
 	newNumber, err := strconv.Atoi(num)
 	if err != nil {
 		errors = append(errors, "Invalid number")
-		bh.CreateBoxViewParser(w, r, CreateBoxViewResponse{
+		bh.CreateBoxViewParser(w, r, responses.CreateBoxViewResponse{
 			BoxSizes:     []string{string(models.SmallSize), string(models.MediumSize), string(models.LargeSize)},
 			Box:          models.Box{Number: newNumber, Size: models.Size(size)},
 			ErrorMessage: strings.Join(errors, "."),
@@ -88,7 +97,7 @@ func (bh BoxHandler) CreateBoxPost(w http.ResponseWriter, r *http.Request) {
 	id, err := bh.Service.CreateBox(models.Box{Number: newNumber, Size: models.Size(size)})
 	if err != nil {
 		errors = append(errors, err.Error())
-		bh.CreateBoxViewParser(w, r, CreateBoxViewResponse{
+		bh.CreateBoxViewParser(w, r, responses.CreateBoxViewResponse{
 			BoxSizes:     []string{string(models.SmallSize), string(models.MediumSize), string(models.LargeSize)},
 			Box:          models.Box{Number: newNumber, Size: models.Size(size)},
 			ErrorMessage: strings.Join(errors, "."),
@@ -102,7 +111,7 @@ func (bh BoxHandler) CreateBoxPost(w http.ResponseWriter, r *http.Request) {
 func (bh BoxHandler) CreateBoxViewParser(
 	w http.ResponseWriter,
 	r *http.Request,
-	response CreateBoxViewResponse) {
+	response responses.CreateBoxViewResponse) {
 
 	t, err := template.ParseFiles(
 		"./ui/html/base.html",
@@ -119,14 +128,6 @@ func (bh BoxHandler) CreateBoxViewParser(
 		bh.slogger.Error(err.Error())
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
-}
-
-type BoxResponse struct {
-	ID            int
-	Number        int
-	Size          string
-	Availabilites []*responses.AvailabilityResponse
-	Bookings      []*responses.BookingResponse
 }
 
 // GetBoxView Does not allow for edit - only view mode :)
@@ -217,7 +218,7 @@ func (bh BoxHandler) GetBoxView(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	boxResponse := BoxResponse{
+	boxResponse := responses.BoxResponse{
 		ID:            boxID,
 		Number:        box.Number,
 		Size:          string(box.Size),

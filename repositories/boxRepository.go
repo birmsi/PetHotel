@@ -43,16 +43,16 @@ func (bx BoxRepository) GetBox(id int) (*models.Box, error) {
 }
 
 func (bx BoxRepository) GetBoxes() ([]*models.Box, error) {
-	query := `SELECT id, number, size FROM boxes FROM boxes`
+	query := `SELECT id, number, size FROM boxes`
 	rows, err := bx.DB.Query(query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	boxes := make([]*models.Box, 0)
-	box := models.Box{}
 
 	for rows.Next() {
+		box := models.Box{}
 		if err = rows.Scan(&box.ID, &box.Number, &box.Size); err != nil {
 			return nil, err
 		}

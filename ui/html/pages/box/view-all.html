@@ -1,0 +1,42 @@
+{{define "title"}} Boxes {{end}}
+
+{{define "main-styles"}}
+{{end}}
+
+{{define "main"}}
+<table id="boxes-table" class="table table-striped table-bordered">
+<thead>
+    <tr>
+        <th>Number</th>
+        <th>Size</th>
+        <th></th>
+    </tr>
+</thead>
+<tbody>
+    {{ range $box := . }}
+        <tr>
+            <td>
+                {{$box.Number}}
+            </td>
+            <td>
+                {{$box.Size}}
+            </td>
+            <td>
+                <button class="btn btn-secondary"><a href="/box/{{$box.ID}}/view">Details</a></button>
+            </td>
+        </tr>
+    {{ end }}
+</tbody>
+</table>
+{{end}}
+
+
+{{define "main-scripts"}}
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
+
+<script>
+    new DataTable('#boxes-table');
+</script>
+{{end}}
