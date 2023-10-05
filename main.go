@@ -2,6 +2,8 @@ package main
 
 import (
 	"PetHotel/handlers"
+	"PetHotel/middlewares"
+
 	"PetHotel/repositories"
 	"PetHotel/services"
 	"context"
@@ -37,6 +39,7 @@ type ApplicationInfo struct {
 	applicationPort string
 	DBInfo          DBInfo
 	handlers        ApplicationHandlers
+	slogger         *slog.Logger
 }
 
 func main() {
@@ -51,6 +54,7 @@ func main() {
 		slogger.Error(err.Error())
 		os.Exit(1)
 	}
+	applicationInfo.slogger = slogger
 
 	db, err := openDB(applicationInfo.DBInfo)
 	if err != nil {
@@ -62,6 +66,20 @@ func main() {
 
 	applicationInfo.handlers = initApplicationHandlers(db, slogger)
 
+	server := http.Server{
+		Addr:    ":4000",
+		Handler: routes(applicationInfo),
+	}
+
+	slogger.Debug(fmt.Sprintf("Ready 2 go! Listening on :%s", applicationInfo.applicationPort))
+
+	if err := server.ListenAndServe(); err != nil {
+		slogger.Error(fmt.Sprintf("Failed to init server - %s", err.Error()))
+		os.Exit(1)
+	}
+}
+
+func routes(applicationInfo ApplicationInfo) http.Handler {
 	r := chi.NewRouter()
 	fileServer := http.StripPrefix("/static", http.FileServer(http.Dir("./ui/static/")))
 
@@ -76,7 +94,6 @@ func main() {
 		r.Post("/create", applicationInfo.handlers.BoxHandlers.CreateBoxPost)
 		r.Get("/{boxID}/view", applicationInfo.handlers.BoxHandlers.GetBoxView)
 
-		// r.Get("/{boxID}/update", applicationInfo.handlers.BoxHandlers.GetBoxUpdateView)
 		r.Post("/{boxID}/update", applicationInfo.handlers.BoxHandlers.GetBoxUpdatePut)
 
 		r.Delete("/{boxID}", applicationInfo.handlers.BoxHandlers.BoxDelete)
@@ -93,18 +110,7 @@ func main() {
 
 		r.Get("/{bookingID}/delete", applicationInfo.handlers.BookingHandlers.DeleteBookingPost)
 	})
-
-	server := http.Server{
-		Addr:    ":4000",
-		Handler: r,
-	}
-
-	slogger.Debug(fmt.Sprintf("Ready 2 go! Listening on :%s", applicationInfo.applicationPort))
-
-	if err := server.ListenAndServe(); err != nil {
-		slogger.Error(fmt.Sprintf("Failed to init server - %s", err.Error()))
-		os.Exit(1)
-	}
+	return middlewares.LogRequest(applicationInfo.slogger, middlewares.SecureHeaders(r))
 }
 
 func openDB(dbInfo DBInfo) (*sql.DB, error) {
